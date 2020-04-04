@@ -1,23 +1,23 @@
 # nginx-alg
 
-Introducation:
+1.Introducation:
 
-ALG MODULE support for NGINX and only ftp alg is supported currently.
+    ALG MODULE support for NGINX and only ftp alg is supported currently.
 
-How TO Use?
+2.How TO Use?
 
-configure to add the alg module into the nginx ./configure --with-stream --with-stream_alg ...
+   a. configure to add the alg module into the nginx ./configure --with-stream --with-stream_alg ...
 
-add the "alg ftp" option into the upstream server syntax scope.
+   b. add the "alg ftp" option into the upstream server syntax scope.
 
-server {
+   server {
 
- listen 60.60.60.77:2121;
+       listen 60.60.60.77:2121;
  
- proxy_timeout 65534;
+       proxy_timeout 65534;
  
- proxy_pass vpnftp1;
+       proxy_pass vpnftp1;
  
- alg ftp;
+       alg ftp;
  
-}
+   }
