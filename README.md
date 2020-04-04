@@ -19,4 +19,5 @@ server {
  proxy_pass vpnftp1;
  
  alg ftp;
+ 
 }
