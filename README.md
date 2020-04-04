@@ -6,9 +6,14 @@
 
 2.How TO Use?
 
-    a. configure to add the alg module into the nginx ./configure --with-stream --with-stream_alg ...
+    a. configure to add the alg module into the nginx 
+    
+        introduced a new compiling option --with-stream_alg for this purpose
+        ./configure --with-stream --with-stream_alg ...
 
     b. add the "alg ftp" option into the upstream server syntax scope.
+       
+       introduceda a new running option "alg ftp" for this purpose.
         
         server {
 
