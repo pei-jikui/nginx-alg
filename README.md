@@ -13,7 +13,7 @@
 
     b. add the "alg ftp" option into the upstream server syntax scope.
        
-       introduceda a new running option "alg ftp" for this purpose.
+       introduced a new running option "alg ftp" for this purpose.
         
         server {
 
