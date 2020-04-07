@@ -12,7 +12,9 @@
 static ngx_int_t ngx_stream_alg_init(ngx_conf_t *cf);
 static ngx_int_t ngx_stream_alg_handler(ngx_stream_session_t *s);
 static char * ngx_stream_alg_alg(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static ngx_event_handler_pt ngx_stream_alg_get_stream_handler(ngx_stream_session_t *s,ngx_event_handler_pt handler, ngx_int_t up_down);
 static void * ngx_stream_alg_create_srv_conf(ngx_conf_t *cf);
+static void * ngx_stream_alg_create_main_conf(ngx_conf_t *cf);
 
 static ngx_command_t  ngx_stream_alg_commands[] = {
 
@@ -32,7 +34,7 @@ static ngx_stream_module_t  ngx_stream_alg_module_ctx = {
     NULL,                                  /* preconfiguration */
     ngx_stream_alg_init,           /* postconfiguration */
 
-    NULL,                                  /* create main configuration */
+    ngx_stream_alg_create_main_conf,      /* create main configuration */
     NULL,                                  /* init main configuration */
 
     ngx_stream_alg_create_srv_conf,       /* create server configuration */
@@ -54,37 +56,6 @@ ngx_module_t  ngx_stream_alg_module = {
     NULL,                                  /* exit master */
     NGX_MODULE_V1_PADDING
 };
-
-static void *
-ngx_stream_alg_create_srv_conf(ngx_conf_t *cf)
-{
-    ngx_stream_alg_srv_conf_t  *conf;
-
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_alg_srv_conf_t));
-    if (conf == NULL) {
-        return NULL;
-    }
-
-    return conf;
-}
-
-static ngx_int_t
-ngx_stream_alg_init(ngx_conf_t *cf)
-{
-    ngx_stream_handler_pt        *h;
-    ngx_stream_core_main_conf_t  *cmcf;
-
-    cmcf = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_core_module);
-
-    h = ngx_array_push(&cmcf->phases[NGX_STREAM_PREREAD_PHASE].handlers);
-    if (h == NULL) {
-        return NGX_ERROR;
-    }
-
-    *h = ngx_stream_alg_handler;
-
-    return NGX_OK;
-}
 
 
 static ngx_int_t 
@@ -338,8 +309,6 @@ ngx_stream_alg_handler(ngx_stream_session_t *s)
             }
             ngx_stream_set_ctx(s, ctx, ngx_stream_alg_module);
             ctx->alg_resolved_peer = NULL;
-            ctx->alg_handler = ngx_stream_alg_ftp_process;
-
         }
     }
     if ( c->buffer == NULL ) {
@@ -350,7 +319,7 @@ ngx_stream_alg_handler(ngx_stream_session_t *s)
 }
 
 
-    char *
+char *
 ngx_stream_alg_alg(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
 
@@ -363,4 +332,103 @@ ngx_stream_alg_alg(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;
+}
+static void *
+ngx_stream_alg_create_main_conf(ngx_conf_t *cf)
+{
+    ngx_stream_alg_main_conf_t *amcf;
+    amcf = ngx_pcalloc(cf->pool,sizeof(ngx_stream_alg_main_conf_t));
+    if (amcf == NULL) {
+        return NULL;
+    }
+    amcf->alg_handler = ngx_stream_alg_ftp_process;
+    amcf->alg_get_stream_handler = ngx_stream_alg_get_stream_handler;
+    return amcf;
+}
+static void *
+ngx_stream_alg_create_srv_conf(ngx_conf_t *cf)
+{
+    ngx_stream_alg_srv_conf_t  *conf;
+
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_alg_srv_conf_t));
+    if (conf == NULL) {
+        return NULL;
+    }
+
+    return conf;
+}
+
+static ngx_int_t
+ngx_stream_alg_init(ngx_conf_t *cf)
+{
+    ngx_stream_handler_pt        *h;
+    ngx_stream_core_main_conf_t  *cmcf;
+
+    cmcf = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_core_module);
+
+    h = ngx_array_push(&cmcf->phases[NGX_STREAM_PREREAD_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+
+    *h = ngx_stream_alg_handler;
+
+    return NGX_OK;
+}
+
+static void ngx_stream_alg_downstream_handler(ngx_event_t *ev)
+{
+    ngx_connection_t             *c;
+    ngx_stream_session_t         *s;
+    ngx_stream_upstream_t        *u;
+    ngx_stream_alg_main_conf_t *amcf;
+    
+    c = ev->data;
+    s = c->data;
+    u = s->upstream;
+    amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+    if (amcf == NULL) {
+        return;
+    }
+    (amcf->previous_downstream_handler)(ev);
+    return;
+}
+
+static void ngx_stream_alg_upstream_handler(ngx_event_t *ev)
+{
+    ngx_connection_t             *c;
+    ngx_stream_session_t         *s;
+    ngx_stream_upstream_t        *u;
+    ngx_stream_alg_main_conf_t *amcf;
+    
+    c = ev->data;
+    s = c->data;
+    u = s->upstream;
+    
+    amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+    if (amcf == NULL || amcf->previous_upstream_handler == NULL) {
+        return;
+    }
+
+    (amcf->previous_upstream_handler)(ev);
+    return;
+}
+static ngx_event_handler_pt ngx_stream_alg_get_stream_handler(ngx_stream_session_t *s,ngx_event_handler_pt pre_handler, ngx_int_t up_down)
+{
+    ngx_event_handler_pt handler = NULL;
+    ngx_stream_alg_main_conf_t *amcf;
+    
+    amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+    if (amcf == NULL) {
+        return handler;
+    }
+    /*downstream*/
+    if (up_down == NGX_STREAM_ALG_DOWNSTREAM) {
+        amcf->previous_downstream_handler = pre_handler;
+        handler = ngx_stream_alg_downstream_handler;
+    } else {
+        amcf->previous_upstream_handler = pre_handler;
+        handler =  ngx_stream_alg_upstream_handler;
+    }   
+    return handler;
 }

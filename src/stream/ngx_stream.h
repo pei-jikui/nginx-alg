@@ -128,7 +128,6 @@ typedef ngx_int_t (*ngx_stream_phase_handler_pt)(ngx_stream_session_t *s,
     ngx_stream_phase_handler_t *ph);
 typedef ngx_int_t (*ngx_stream_handler_pt)(ngx_stream_session_t *s);
 typedef void (*ngx_stream_content_handler_pt)(ngx_stream_session_t *s);
-typedef ngx_int_t (*ngx_stream_alg_handler_pt)(ngx_stream_session_t *s,u_char *buf,ssize_t ssize);
 
 struct ngx_stream_phase_handler_s {
     ngx_stream_phase_handler_pt    checker;
