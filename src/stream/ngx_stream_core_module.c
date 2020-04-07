@@ -145,19 +145,16 @@ ngx_stream_core_run_phases(ngx_stream_session_t *s)
     ngx_stream_core_main_conf_t  *cmcf;
 
     cmcf = ngx_stream_get_module_main_conf(s, ngx_stream_core_module);
-
     ph = cmcf->phase_engine.handlers;
 
     while (ph[s->phase_handler].checker) {
 
         rc = ph[s->phase_handler].checker(s, &ph[s->phase_handler]);
-
         if (rc == NGX_OK) {
             return;
         }
     }
 }
-
 
 ngx_int_t
 ngx_stream_core_generic_phase(ngx_stream_session_t *s,
