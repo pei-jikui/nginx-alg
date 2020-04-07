@@ -416,6 +416,17 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
     c->write->handler = ngx_stream_proxy_downstream_handler;
     c->read->handler = ngx_stream_proxy_downstream_handler;
 
+#if (NGX_STREAM_ALG)
+    {
+        ngx_stream_alg_main_conf_t *amcf;
+        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+        if (amcf) {
+            c->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+            c->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+        }
+    }
+#endif
+
     s->upstream_states = ngx_array_create(c->pool, 1,
                                           sizeof(ngx_stream_upstream_state_t));
     if (s->upstream_states == NULL) {
@@ -445,7 +456,7 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
         ctx = ngx_stream_get_module_ctx(parent, ngx_stream_alg_module);
         if (ctx && ctx->alg_resolved_peer) {
             ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "Alg data connection, don't need to select server.");
-            s->upstream->resolved = ctx->alg_resolved_peer;
+            u->resolved = ctx->alg_resolved_peer;
             goto resolved;
         } else {
             ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "ctx or alg resolved peer is invalidate.");
@@ -473,11 +484,8 @@ resolved:
 #if (NGX_STREAM_SSL)
         u->ssl_name = u->resolved->host;
 #endif
-
         host = &u->resolved->host;
-
         umcf = ngx_stream_get_module_main_conf(s, ngx_stream_upstream_module);
-
         uscfp = umcf->upstreams.elts;
 
         for (i = 0; i < umcf->upstreams.nelts; i++) {
@@ -928,6 +936,17 @@ ngx_stream_proxy_init_upstream(ngx_stream_session_t *s)
 
     pc->read->handler = ngx_stream_proxy_upstream_handler;
     pc->write->handler = ngx_stream_proxy_upstream_handler;
+
+#if (NGX_STREAM_ALG)
+    {
+        ngx_stream_alg_main_conf_t *amcf;
+        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+        if (amcf) {
+            pc->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+            pc->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+        }
+    }
+#endif
 
     if (pc->read->ready) {
         ngx_post_event(pc->read, &ngx_posted_events);
@@ -1658,11 +1677,11 @@ ngx_stream_proxy_process(ngx_stream_session_t *s, ngx_uint_t from_upstream,
                 }
 
 #if (NGX_STREAM_ALG)
-                ngx_stream_alg_ctx_t       *ctx;
-                ctx = ngx_stream_get_module_ctx(s, ngx_stream_alg_module);
-                if (ctx && ctx->alg_handler) {
+                ngx_stream_alg_main_conf_t *amcf;
+                amcf = ngx_stream_get_module_main_conf(s, ngx_stream_alg_module);
+                if (amcf && amcf->alg_handler) {
                     ngx_int_t                 new_size;
-                    new_size = ctx->alg_handler(s,b->last,n);
+                    new_size = amcf->alg_handler(s,b->last,n);
                     if (new_size > 0) {
                         n = new_size;
                     }
@@ -1889,14 +1908,19 @@ ngx_stream_proxy_finalize(ngx_stream_session_t *s, ngx_uint_t rc)
     ngx_stream_alg_ctx_t       *ctx;
     ctx = ngx_stream_get_module_ctx(s, ngx_stream_alg_module);
     if (ctx ) {
+        if (ctx->alg_resolved_peer) {
+            ngx_pfree(s->connection->pool,ctx->alg_resolved_peer->sockaddr);
+            ngx_pfree(s->connection->pool,ctx->alg_resolved_peer);
+        }
         ngx_pfree(s->connection->pool,ctx);
     } else {
         /*child session. Need to close the listening socket.*/
-        /*TODO the listening sockets needs to be orgnized*/    
+        /*TODO the listening sockets need to be orgnized*/
         ngx_close_connection(s->connection->listening->connection);
         ngx_pfree(s->connection->pool,s->connection->listening);
     }
 #endif
+
     u = s->upstream;
 
     if (u == NULL) {
