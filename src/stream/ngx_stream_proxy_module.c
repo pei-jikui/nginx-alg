@@ -416,6 +416,17 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
     c->write->handler = ngx_stream_proxy_downstream_handler;
     c->read->handler = ngx_stream_proxy_downstream_handler;
 
+#if (NGX_STREAM_ALG)
+    {
+        ngx_stream_alg_main_conf_t *amcf;
+        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+        if (amcf) {
+            c->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+            c->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+        }
+    }
+#endif
+
     s->upstream_states = ngx_array_create(c->pool, 1,
                                           sizeof(ngx_stream_upstream_state_t));
     if (s->upstream_states == NULL) {
@@ -925,6 +936,17 @@ ngx_stream_proxy_init_upstream(ngx_stream_session_t *s)
 
     pc->read->handler = ngx_stream_proxy_upstream_handler;
     pc->write->handler = ngx_stream_proxy_upstream_handler;
+
+#if (NGX_STREAM_ALG)
+    {
+        ngx_stream_alg_main_conf_t *amcf;
+        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+        if (amcf) {
+            pc->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+            pc->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+        }
+    }
+#endif
 
     if (pc->read->ready) {
         ngx_post_event(pc->read, &ngx_posted_events);
