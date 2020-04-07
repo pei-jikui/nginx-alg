@@ -14,7 +14,7 @@ _test
 tests/cilium-files
 test/test_results
 _build/
-
+README.md
 # Architecture specific extensions/prefixes
 *.cgo1.go
 *.cgo2.c
