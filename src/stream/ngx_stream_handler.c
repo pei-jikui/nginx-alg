@@ -39,8 +39,6 @@ ngx_stream_init_connection(ngx_connection_t *c)
     ngx_stream_core_main_conf_t  *cmcf;
 
 
-    /*if the the listening socket has parent session. Then pick the addr_conf from the 
-     * parent session instead of to pick on.*/
     port = c->listening->servers;
 
     if (port->naddrs > 1) {
