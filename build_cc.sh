@@ -1,5 +1,5 @@
 #!/bin/bash
-tgtdir=/Users/pei/nginx
+tgtdir=/Users/`whoami`/nginx
 #tgtdir=/usr/local/nginx
 cdir=`cd $(dirname $0); pwd`
 (
