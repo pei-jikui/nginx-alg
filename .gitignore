@@ -50,7 +50,6 @@ src/cscope.out
 *cscope.po.out
 *tags
 
-man/
 
 test/tmp.yaml
 test/*_service_manifest.json
