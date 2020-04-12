@@ -192,8 +192,8 @@ ngx_stream_alg_ftp_process(ngx_stream_session_t *s,u_char* buf,ssize_t size)
 
     /*check the buf ends with the \r\n */
     if (ngx_strncmp(command +size -1 -2,CRLF,2) != 0 ) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                "%s find a full sentence with \"\\r\\n\"",__func__);
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                "%s find a full sentence %s with \"\\r\\n\"",__func__,command);
         if (ngx_strstr(command,pasv) != NULL) {
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                 "%s:Entering Passive Mode.%s",__func__,command);
@@ -341,7 +341,6 @@ ngx_stream_alg_create_main_conf(ngx_conf_t *cf)
     if (amcf == NULL) {
         return NULL;
     }
-    amcf->alg_handler = ngx_stream_alg_ftp_process;
     amcf->alg_get_stream_handler = ngx_stream_alg_get_stream_handler;
     return amcf;
 }
@@ -382,6 +381,12 @@ static void ngx_stream_alg_downstream_handler(ngx_event_t *ev)
     ngx_stream_session_t         *s;
     ngx_stream_upstream_t        *u;
     ngx_stream_alg_main_conf_t *amcf;
+    size_t                       size;
+    size_t                       new_size;
+    ssize_t                      n;
+    ngx_chain_t                  *cl;
+    ngx_int_t                    rc;
+    ngx_stream_core_srv_conf_t  *cscf;
     
     c = ev->data;
     s = c->data;
@@ -389,6 +394,84 @@ static void ngx_stream_alg_downstream_handler(ngx_event_t *ev)
     amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
     if (amcf == NULL) {
         return;
+    }
+    cscf = ngx_stream_get_module_srv_conf(s, ngx_stream_core_module);
+    if (cscf == NULL) {
+        return;
+    }
+
+    if (c->read->timedout) {
+    } else if (c->read->timer_set) {
+    } else {
+    }
+    
+    if (c->buffer == NULL) {
+        c->buffer = ngx_create_temp_buf(c->pool, cscf->preread_buffer_size);
+        if (c->buffer == NULL) {
+            rc = NGX_ERROR;
+            ngx_stream_finalize_session(s, rc);
+            return;
+        }
+    }
+
+    size = c->buffer->end - c->buffer->last;
+
+    if (size == 0) {
+        ngx_log_error(NGX_LOG_ERR, c->log, 0, "preread buffer full");
+        rc = NGX_STREAM_BAD_REQUEST;
+        ngx_stream_finalize_session(s, rc);
+        return;
+    }
+
+    if (c->read->eof) {
+        rc = NGX_STREAM_OK;
+        return;
+    }
+
+    if (!c->read->ready) {
+        return;
+    }
+    c->buffer->pos = c->buffer->last;
+    n = c->recv(c, c->buffer->last, size);
+
+    if (n == NGX_ERROR || n == 0) {
+        rc = NGX_STREAM_OK;
+        ngx_stream_finalize_session(s, rc);
+        return;
+    }
+
+    if (n == NGX_AGAIN) {
+        return;
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            "%s content is : %s",
+            __func__,c->buffer->pos);
+    new_size = ngx_stream_alg_ftp_process(s,c->buffer->pos,n);
+    if (new_size > 0) {
+        n = new_size;
+    }
+    c->buffer->last += n;
+     /*merge the read buffer*/
+    if (c->buffer && c->buffer->pos < c->buffer->last) {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                       "stream proxy add preread buffer: %uz",
+                       c->buffer->last - c->buffer->pos);
+
+        cl = ngx_chain_get_free_buf(c->pool, &u->free);
+        if (cl == NULL) {
+            rc = NGX_STREAM_OK;
+            ngx_stream_finalize_session(s, rc);
+            return;
+        }
+
+        *cl->buf = *c->buffer;
+
+        cl->buf->tag = (ngx_buf_tag_t) &ngx_stream_alg_module;
+        cl->buf->flush = 1;
+
+        cl->next = u->upstream_out;
+        u->upstream_out = cl;
     }
     (amcf->previous_downstream_handler)(ev);
     return;
@@ -400,19 +483,103 @@ static void ngx_stream_alg_upstream_handler(ngx_event_t *ev)
     ngx_stream_session_t         *s;
     ngx_stream_upstream_t        *u;
     ngx_stream_alg_main_conf_t *amcf;
+    size_t                       size;
+    ssize_t                      n;
+    ssize_t                      new_size;
+    ngx_chain_t                  *cl;
+    ngx_int_t                    rc;
+    ngx_stream_core_srv_conf_t  *cscf;
     
     c = ev->data;
     s = c->data;
     u = s->upstream;
-    
     amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
-    if (amcf == NULL || amcf->previous_upstream_handler == NULL) {
+    if (amcf == NULL) {
+        return;
+    }
+    cscf = ngx_stream_get_module_srv_conf(s, ngx_stream_core_module);
+    if (cscf == NULL) {
         return;
     }
 
+    if (c->read->timedout) {
+    } else if (c->read->timer_set) {
+    } else {
+    }
+    
+    if (c->buffer == NULL) {
+        c->buffer = ngx_create_temp_buf(c->pool, cscf->preread_buffer_size);
+        if (c->buffer == NULL) {
+            rc = NGX_ERROR;
+            ngx_stream_finalize_session(s, rc);
+            return;
+        }
+    }
+
+    size = c->buffer->end - c->buffer->last;
+
+    if (size == 0) {
+        ngx_log_error(NGX_LOG_ERR, c->log, 0, "preread buffer full");
+        rc = NGX_STREAM_BAD_REQUEST;
+        ngx_stream_finalize_session(s, rc);
+        return;
+    }
+
+    if (c->read->eof) {
+        rc = NGX_STREAM_OK;
+        return;
+    }
+
+    if (!c->read->ready) {
+        return;
+    }
+    c->buffer->pos = c->buffer->last;
+    n = c->recv(c, c->buffer->last, size);
+
+    if (n == NGX_ERROR || n == 0) {
+        rc = NGX_STREAM_OK;
+        ngx_stream_finalize_session(s, rc);
+        return;
+    }
+
+    if (n == NGX_AGAIN) {
+        return;
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            "%s content is : %s",
+            __func__,c->buffer->pos);
+    new_size = ngx_stream_alg_ftp_process(s,c->buffer->pos,n);
+    
+    if (new_size > 0) {
+        n = new_size;
+    }
+    c->buffer->last += n;
+     /*merge the read buffer*/
+    if (c->buffer && c->buffer->pos < c->buffer->last) {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                       "stream proxy add preread buffer: %uz",
+                       c->buffer->last - c->buffer->pos);
+
+        cl = ngx_chain_get_free_buf(c->pool, &u->free);
+        if (cl == NULL) {
+            rc = NGX_STREAM_OK;
+            ngx_stream_finalize_session(s, rc);
+            return;
+        }
+
+        *cl->buf = *c->buffer;
+
+        cl->buf->tag = (ngx_buf_tag_t) &ngx_stream_alg_module;
+        cl->buf->flush = 1;
+
+        cl->next = u->downstream_out;
+        u->downstream_out = cl;
+    }
     (amcf->previous_upstream_handler)(ev);
     return;
 }
+
 static ngx_event_handler_pt ngx_stream_alg_get_stream_handler(ngx_stream_session_t *s,ngx_event_handler_pt pre_handler, ngx_int_t up_down)
 {
     ngx_event_handler_pt handler = NULL;
