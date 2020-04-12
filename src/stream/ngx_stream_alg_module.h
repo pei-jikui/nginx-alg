@@ -24,7 +24,6 @@ typedef struct {
 } ngx_stream_alg_srv_conf_t;
 
 typedef struct {
-    ngx_stream_alg_handler_pt      alg_handler;
     ngx_event_handler_pt  alg_downstream_handler;
     ngx_event_handler_pt  alg_upstream_handler;
     ngx_event_handler_pt  previous_upstream_handler;

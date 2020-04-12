@@ -419,10 +419,14 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
 #if (NGX_STREAM_ALG)
     {
         ngx_stream_alg_main_conf_t *amcf;
-        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
-        if (amcf) {
-            c->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
-            c->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+        ngx_stream_session_t *parent;
+        parent = c->listening->parent_stream_session;
+        if (!parent) {
+            amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+            if (amcf) {
+                c->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+                c->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+            }
         }
     }
 #endif
@@ -940,10 +944,14 @@ ngx_stream_proxy_init_upstream(ngx_stream_session_t *s)
 #if (NGX_STREAM_ALG)
     {
         ngx_stream_alg_main_conf_t *amcf;
-        amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
-        if (amcf) {
-            pc->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
-            pc->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+        ngx_stream_session_t *parent;
+        parent = c->listening->parent_stream_session;
+        if (!parent) {
+            amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
+            if (amcf) {
+                pc->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+                pc->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+            }
         }
     }
 #endif
@@ -1273,7 +1281,7 @@ done:
 static void
 ngx_stream_proxy_downstream_handler(ngx_event_t *ev)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"upstream handler %s.",ev->write? "write":"read");
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"downstream handler %s.",ev->write? "write":"read");
     ngx_stream_proxy_process_connection(ev, ev->write);
 }
 
@@ -1461,7 +1469,8 @@ ngx_stream_proxy_process_connection(ngx_event_t *ev, ngx_uint_t from_upstream)
         return;
     }
     
-    ngx_stream_proxy_process(s, from_upstream, ev->write);
+    ngx_stream_proxy_process(s, from_upstream, 1);
+    //ngx_stream_proxy_process(s, from_upstream, ev->write);
 }
 
 
@@ -1559,6 +1568,8 @@ ngx_stream_proxy_process(ngx_stream_session_t *s, ngx_uint_t from_upstream,
     c = s->connection;
     pc = u->connected ? u->peer.connection : NULL;
 
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+                   "In function %s. do_write %ui.",__func__,do_write);
     if (c->type == SOCK_DGRAM && (ngx_terminate || ngx_exiting)) {
 
         /* socket is already closed on worker shutdown */
@@ -1675,18 +1686,6 @@ ngx_stream_proxy_process(ngx_stream_session_t *s, ngx_uint_t from_upstream,
                                                     - u->start_time;
                     }
                 }
-
-#if (NGX_STREAM_ALG)
-                ngx_stream_alg_main_conf_t *amcf;
-                amcf = ngx_stream_get_module_main_conf(s, ngx_stream_alg_module);
-                if (amcf && amcf->alg_handler) {
-                    ngx_int_t                 new_size;
-                    new_size = amcf->alg_handler(s,b->last,n);
-                    if (new_size > 0) {
-                        n = new_size;
-                    }
-                }
-#endif
                 for (ll = out; *ll; ll = &(*ll)->next) { /* void */ }
 
                 cl = ngx_chain_get_free_buf(c->pool, &u->free);
