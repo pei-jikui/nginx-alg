@@ -460,6 +460,7 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     rc = ngx_stream_alg_ftp_process(s,c->buffer->pos,n,&new_size);
     
     if (rc == NGX_ERROR) {
+
         return rc;
     } else {
         c->buffer->last += new_size;
