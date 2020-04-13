@@ -172,6 +172,7 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
  */
 static ngx_int_t 
 ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
+
 {
     u_char * command = NULL;
     u_char * new_buf = NULL;
@@ -186,6 +187,7 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
     unsigned int addr1,addr2,addr3,addr4;
     unsigned int entering_alg = 0;
     ngx_connection_t *c;
+
     ngx_uint_t total_len = 0;
     ngx_int_t number;
     
@@ -206,7 +208,9 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
     ngx_memcpy(command,buffer->pos,total_len);
 
     /*check the buf ends with the \r\n */
+
     if (ngx_strstrn(command+total_len-2,CRLF,2) == NULL ) {
+
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                 "%s Don't find a full sentence %s with \"\\r\\n\"",__func__,command);
         ngx_pfree(c->pool,command);
@@ -218,6 +222,7 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
     if (ngx_strstr(command,pasv) != NULL) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                 "%s:Entering Passive Mode.%s",__func__,command);
+
         left_brace = ngx_strlchr(command,command + total_len -1,'(');
         right_brace = ngx_strlchr(command,command +total_len -1,')');
         if (left_brace == NULL || right_brace == NULL) {
@@ -272,6 +277,7 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                     "%s the address is %s.",__func__,addr_str);
             number = sscanf((const char *)addr_str,"%u.%u.%u.%u",&addr1,&addr2,&addr3,&addr4);
+
         }
         if(number != 4 ) {
             ngx_pfree(c->pool,command);
@@ -462,8 +468,8 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
             "%s content is : %s",
             __func__,c->buffer->pos);
+
     c->buffer->last += n;
-    //rc = ngx_stream_alg_ftp_process(s,c->buffer->pos,n,&new_size);
     rc = ngx_stream_alg_ftp_process_handler(s,c->buffer);
     
     if (rc == NGX_ERROR) {
@@ -473,8 +479,8 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
             if (ngx_handle_read_event(ev, 0) != NGX_OK) {
             }
             return rc;
-        }
-        
+        }       
+
     }
     
      /*merge the read buffer*/
