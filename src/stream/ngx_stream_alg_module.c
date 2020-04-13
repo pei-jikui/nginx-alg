@@ -175,7 +175,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
 
 {
     u_char * command = NULL;
-    u_char * new_buf = NULL;
     u_char pasv[] = "227 Entering Passive Mode (";
     u_char port[] = "PORT ";
     u_char *left_brace = NULL;
@@ -294,9 +293,11 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         }
         ngx_memset(buffer->pos,0,total_len);
         if (entering_alg == 1) {
-            new_buf = ngx_snprintf(buffer->pos,80,"227 Entering Passive Mode (%ud,%ud,%ud,%ud,%ud,%ud).\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
+            ngx_snprintf(buffer->pos,80,"227 Entering Passive Mode (%ud,%ud,%ud,%ud,%ud,%ud).\r\n",
+                    addr1,addr2,addr3,addr4,port_num/256,port_num%256);
         }else {
-            new_buf = ngx_snprintf(buffer->pos,80,"PORT %ud,%ud,%ud,%ud,%ud,%ud\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
+            ngx_snprintf(buffer->pos,80,"PORT %ud,%ud,%ud,%ud,%ud,%ud\r\n",
+                    addr1,addr2,addr3,addr4,port_num/256,port_num%256);
         }
 
         buffer->last = buffer->pos + ngx_strlen(buffer->pos);
