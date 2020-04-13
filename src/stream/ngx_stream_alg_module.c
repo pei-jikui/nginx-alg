@@ -408,7 +408,6 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     cscf = ngx_stream_get_module_srv_conf(s, ngx_stream_core_module);
     if (cscf == NULL) {
         rc = NGX_ERROR;
-        ngx_stream_finalize_session(s, rc);
         return rc;
     }
 
@@ -421,7 +420,6 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
         c->buffer = ngx_create_temp_buf(c->pool, cscf->preread_buffer_size);
         if (c->buffer == NULL) {
             rc = NGX_ERROR;
-            ngx_stream_finalize_session(s, rc);
             return rc;
         }
     }
@@ -431,7 +429,6 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     if (size == 0) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0, "preread buffer full");
         rc = NGX_ERROR;
-        ngx_stream_finalize_session(s, NGX_STREAM_BAD_REQUEST);
         return rc;
     }
 
@@ -450,7 +447,6 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
 
     if (n == NGX_ERROR || n == 0) {
         rc = NGX_STREAM_OK;
-        ngx_stream_finalize_session(s, rc);
         return NGX_OK;
     }
 
@@ -464,7 +460,7 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     rc = ngx_stream_alg_ftp_process(s,c->buffer->pos,n,&new_size);
     
     if (rc == NGX_ERROR) {
-        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+
         return rc;
     } else {
         c->buffer->last += new_size;
@@ -482,7 +478,6 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
         cl = ngx_chain_get_free_buf(c->pool, &u->free);
         if (cl == NULL) {
             rc = NGX_ERROR;
-            ngx_stream_finalize_session(s, NGX_STREAM_OK);
             return rc;
         }
 
