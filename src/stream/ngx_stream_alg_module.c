@@ -164,8 +164,14 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     return port_num;
 }
 
+/*Three kinds of return values*/
+/*
+ *1. NGX_ERROR exception
+ *2. NGX_OK processed. 
+ *3. NGX_CONTINUE which means more data is required
+ */
 static ngx_int_t 
-ngx_stream_alg_ftp_process(ngx_stream_session_t *s,u_char* buf,ssize_t size)
+ngx_stream_alg_ftp_process(ngx_stream_session_t *s,u_char* buf,ssize_t size, ssize_t *new_size)
 {
     u_char * command = NULL;
     u_char * new_buf = NULL;
@@ -181,103 +187,111 @@ ngx_stream_alg_ftp_process(ngx_stream_session_t *s,u_char* buf,ssize_t size)
     unsigned int number = 0;
     unsigned int entering_alg = 0;
     ngx_connection_t *c;
-
+    
+    *new_size = size;
+    if (size < 2) {
+        return NGX_AGAIN;   
+    }
     c = s->connection;
     command = ngx_pcalloc(c->pool,size+1);
     if (command == NULL) {
-        return NGX_OK;
+        return NGX_ERROR;
     }
 
     ngx_memcpy(command,buf,size);
 
     /*check the buf ends with the \r\n */
-    if (ngx_strncmp(command +size -1 -2,CRLF,2) != 0 ) {
+    if (ngx_strncmp(command +size -1 -2,CRLF,2) == 0 ) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                "%s find a full sentence %s with \"\\r\\n\"",__func__,command);
-        if (ngx_strstr(command,pasv) != NULL) {
-            ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                "%s:Entering Passive Mode.%s",__func__,command);
-            left_brace = ngx_strlchr(command,command + size -1,'(');
-            right_brace = ngx_strlchr(command,command +size -1,')');
-            if (left_brace == NULL || right_brace == NULL) {
-                ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s:Couldn't find the right pattern string.",__func__);
-                ngx_pfree(c->pool,command);
-                return 0;
-            }
-            entering_alg = 1;
-
-        } else if (ngx_strstr(command,port) != NULL) {
-            ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                "%s:Entering Port Mode.%s",__func__,command);
-            left_brace = ngx_strlchr(command,command + size -1,' ');
-            right_brace = ngx_strlchr(command,command +size -1,'\r');
-            if (left_brace == NULL || right_brace == NULL) {
-                ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s:Couldn't find the right pattern string.",__func__);
-                ngx_pfree(c->pool,command);
-                return 0;
-            }
-            entering_alg = 2;
-        }
-
-        if (entering_alg > 0) {
-            ngx_int_t port_num = 0;
-            ngx_uint_t try_times = 0;
-            left_brace += 1;
-            right_brace -= 1;
-            if (ngx_stream_alg_ftp_get_peer_addr(s,left_brace,right_brace-left_brace+1) < 0){
-                ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s:Doesn't contain the right pattern for ip and port.",__func__);
-                ngx_pfree(c->pool,command);
-                return 0;
-            }
-            if (entering_alg == 1) {
-                if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
-                    ngx_pfree(c->pool,command);
-                    return NGX_OK;
-                }
-                ngx_inet_ntop(sockaddr.sin_family,(struct sockaddr *)&sockaddr.sin_addr,addr_str,INET_ADDRSTRLEN);
-                ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s the address is %s.",__func__,addr_str);
-                number = sscanf((const char *)addr_str,"%u.%u.%u.%u",&addr1,&addr2,&addr3,&addr4);
-            }else {
-                fd = s->upstream ->peer.connection->fd;
-                if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
-                    ngx_pfree(c->pool,command);
-                    return NGX_OK;
-                }
-                ngx_inet_ntop(sockaddr.sin_family,(struct sockaddr *)&sockaddr.sin_addr,addr_str,INET_ADDRSTRLEN);
-                ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s the address is %s.",__func__,addr_str);
-                number = sscanf((const char *)addr_str,"%u.%u.%u.%u",&addr1,&addr2,&addr3,&addr4);
-            }
-            if(number != 4 ) {
-                ngx_pfree(c->pool,command);
-                return NGX_OK;
-            }
-            while (port_num <=0 && try_times++ < 5) {
-                port_num = ngx_stream_alg_create_listening_port(s);
-            }
-            if (try_times >= 5 ) {
-                ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
-                        "%s allocate a new socket for data session failed.",__func__);
-                ngx_pfree(c->pool,command);
-                return NGX_OK;
-            }
-            if (entering_alg == 1) {
-                new_buf = ngx_snprintf(buf,80,"227 Entering Passive Mode (%ud,%ud,%ud,%ud,%ud,%ud).\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
-            }else {
-                new_buf = ngx_snprintf(buf,80,"PORT %ud,%ud,%ud,%ud,%ud,%ud\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
-            }
-            number = new_buf - buf;
-        }
+                "%s Don't find a full sentence %s with \"\\r\\n\"",__func__,command);
+        ngx_pfree(c->pool,command);
+        return NGX_AGAIN;
     }
 
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+            "%s find a full sentence %s with \"\\r\\n\"",__func__,command);
+    if (ngx_strstr(command,pasv) != NULL) {
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                "%s:Entering Passive Mode.%s",__func__,command);
+        left_brace = ngx_strlchr(command,command + size -1,'(');
+        right_brace = ngx_strlchr(command,command +size -1,')');
+        if (left_brace == NULL || right_brace == NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s:Couldn't find the right pattern string.",__func__);
+            ngx_pfree(c->pool,command);
+            return NGX_OK;
+        }
+        entering_alg = 1;
+
+    } else if (ngx_strstr(command,port) != NULL) {
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                "%s:Entering Port Mode.%s",__func__,command);
+        left_brace = ngx_strlchr(command,command + size -1,' ');
+        right_brace = ngx_strlchr(command,command +size -1,'\r');
+        if (left_brace == NULL || right_brace == NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s:Couldn't find the right pattern string.",__func__);
+            ngx_pfree(c->pool,command);
+            return NGX_OK;
+        }
+        entering_alg = 2;
+    }
+
+    if (entering_alg > 0) {
+        ngx_int_t port_num = 0;
+        ngx_uint_t try_times = 0;
+        left_brace += 1;
+        right_brace -= 1;
+        if (ngx_stream_alg_ftp_get_peer_addr(s,left_brace,right_brace-left_brace+1) < 0){
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s:Doesn't contain the right pattern for ip and port.",__func__);
+            ngx_pfree(c->pool,command);
+            return NGX_OK;
+        }
+        if (entering_alg == 1) {
+            if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
+                ngx_pfree(c->pool,command);
+                return NGX_ERROR;
+            }
+            ngx_inet_ntop(sockaddr.sin_family,(struct sockaddr *)&sockaddr.sin_addr,addr_str,INET_ADDRSTRLEN);
+            ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s the address is %s.",__func__,addr_str);
+            number = sscanf((const char *)addr_str,"%u.%u.%u.%u",&addr1,&addr2,&addr3,&addr4);
+        }else {
+            fd = s->upstream ->peer.connection->fd;
+            if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
+                ngx_pfree(c->pool,command);
+                return NGX_ERROR;
+            }
+            ngx_inet_ntop(sockaddr.sin_family,(struct sockaddr *)&sockaddr.sin_addr,addr_str,INET_ADDRSTRLEN);
+            ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s the address is %s.",__func__,addr_str);
+            number = sscanf((const char *)addr_str,"%u.%u.%u.%u",&addr1,&addr2,&addr3,&addr4);
+        }
+        if(number != 4 ) {
+            ngx_pfree(c->pool,command);
+            return NGX_OK;
+        }
+        while (port_num <=0 && try_times++ < 5) {
+            port_num = ngx_stream_alg_create_listening_port(s);
+        }
+        if (try_times >= 5 ) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                    "%s allocate a new socket for data session failed.",__func__);
+            ngx_pfree(c->pool,command);
+            return NGX_ERROR;
+        }
+        if (entering_alg == 1) {
+            new_buf = ngx_snprintf(buf,80,"227 Entering Passive Mode (%ud,%ud,%ud,%ud,%ud,%ud).\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
+        }else {
+            new_buf = ngx_snprintf(buf,80,"PORT %ud,%ud,%ud,%ud,%ud,%ud\r\n",addr1,addr2,addr3,addr4,port_num/256,port_num%256);
+        }
+        number = new_buf - buf;
+         *new_size = number;
+    }
     ngx_pfree(c->pool,command);
 
-    return number;
-
+    return NGX_OK;
 }
 static ngx_int_t
 ngx_stream_alg_handler(ngx_stream_session_t *s)
@@ -430,6 +444,7 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
         rc = NGX_OK;
         return rc;
     }
+    
     c->buffer->pos = c->buffer->last;
     n = c->recv(c, c->buffer->last, size);
 
@@ -446,12 +461,18 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
             "%s content is : %s",
             __func__,c->buffer->pos);
-    new_size = ngx_stream_alg_ftp_process(s,c->buffer->pos,n);
+    rc = ngx_stream_alg_ftp_process(s,c->buffer->pos,n,&new_size);
     
-    if (new_size > 0) {
-        n = new_size;
+    if (rc == NGX_ERROR) {
+        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+        return rc;
+    } else {
+        c->buffer->last += new_size;
+        if (rc == NGX_AGAIN) {
+            return rc;
+        }
     }
-    c->buffer->last += n;
+    
      /*merge the read buffer*/
     if (c->buffer && c->buffer->pos < c->buffer->last) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
@@ -495,6 +516,9 @@ static void ngx_stream_alg_stream_handler(ngx_event_t *ev, ngx_int_t stream_dire
     }
 
     rc = ngx_stream_stream_handler(ev,stream_direction);
+    if (rc != NGX_OK) {
+        return;
+    }
     if (stream_direction == NGX_STREAM_ALG_UPSTREAM) {
         (amcf->previous_upstream_handler)(ev);
     } else {
