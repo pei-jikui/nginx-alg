@@ -29,11 +29,17 @@
 3. Ready Features
 
    a. Multiple concurrent connections support.
+   
    b. Full modes, pasv and active, support.
+   
    c. Multiple upstream servers support.
+   
    d. Does need to make any changes in the ftp server side.
    
+   
 4. TO DO features
+
    a. Boost Nginx connection performance.
+   
    b. Other protocol ALGS.
  
