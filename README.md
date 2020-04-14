@@ -26,20 +26,20 @@
             alg ftp;
  
         }
-3. Ready Features
+3.Ready Features
+    
+    a. Multiple concurrent connections support.
 
-   a. Multiple concurrent connections support.
+    b. Full modes, pasv and active, support.
+    
+    c. Multiple servers in one upstream support.
+    
+    d. Doesn't need to make any changes for either ftp client or ftp server.          
    
-   b. Full modes, pasv and active, support.
-   
-   c. Multiple upstream servers support.
-   
-   d. Doet need to make any changes in the ftp server side.
-   
-   
-4. TO DO features
+4.TO DO features
+    
+    a. Boost Nginx connection's performance.
 
-   a. Boost Nginx connection's performance.
-   
-   b. Other protocol ALGS.
- 
+    b. Other protocol's ALG.
+    
+    
