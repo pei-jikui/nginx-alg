@@ -34,12 +34,12 @@
    
    c. Multiple upstream servers support.
    
-   d. Does need to make any changes in the ftp server side.
+   d. Doet need to make any changes in the ftp server side.
    
    
 4. TO DO features
 
-   a. Boost Nginx connection performance.
+   a. Boost Nginx connection's performance.
    
    b. Other protocol ALGS.
  
