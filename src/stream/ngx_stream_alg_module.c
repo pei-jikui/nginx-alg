@@ -456,9 +456,13 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     }
     
     n = c->recv(c, c->buffer->last, size);
-    //n = c->recv(c,c->buffer->last,10);
+    
+    /*Error happened*/
     if (n == NGX_ERROR || n == 0) {
         rc = NGX_STREAM_OK;
+        if (ngx_handle_read_event(c->read, NGX_CLOSE_EVENT) != NGX_OK) {
+            return NGX_ERROR;
+        }
         return NGX_OK;
     }
 
@@ -477,11 +481,8 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
         return rc;
     } else {
         if (rc == NGX_AGAIN) {
-            if (ngx_handle_read_event(ev, 0) != NGX_OK) {
-            }
             return rc;
         }       
-
     }
     
      /*merge the read buffer*/
