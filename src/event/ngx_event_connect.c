@@ -248,6 +248,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         if (rc == -1) {
 
             /* NGX_EINPROGRESS */
+            ngx_log_debug0(NGX_LOG_DEBUG_EVENT, pc->log, 0, "Returned ngx_again");
 
             return NGX_AGAIN;
         }
@@ -307,6 +308,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         if (ngx_add_event(wev, NGX_WRITE_EVENT, event) != NGX_OK) {
             goto failed;
         }
+        ngx_log_debug0(NGX_LOG_DEBUG_EVENT, pc->log, 0, "again1");
 
         return NGX_AGAIN;
     }
