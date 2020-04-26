@@ -622,6 +622,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
 
 #if (NGX_HAVE_REUSEPORT)
     if (ls->reuseport && ls->worker != ngx_worker) {
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:return for reuseport",__func__);
         return NGX_OK;
     }
 #endif
@@ -629,6 +630,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
     c = ngx_get_connection(ls->fd, ngx_cycle->log);
 
     if (c == NULL) {
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:no connection is available",__func__);
         return NGX_ERROR;
     }
 
@@ -660,6 +662,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
             if (ngx_del_event(old->read, NGX_READ_EVENT, NGX_CLOSE_EVENT)
                     == NGX_ERROR)
             {
+                ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:event delete error",__func__);
                 return NGX_ERROR;
             }
 
@@ -712,6 +715,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
 
     if (ls->reuseport) {
         if (ngx_add_event(rev, NGX_READ_EVENT, 0) == NGX_ERROR) {
+            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:add event error",__func__);
             return NGX_ERROR;
         }
         return NGX_OK;
@@ -720,6 +724,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
 #endif
 
     if (ngx_use_accept_mutex) {
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:user accept mutex",__func__);
         return NGX_OK;
     }
 
@@ -731,6 +736,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
         if (ngx_add_event(rev, NGX_READ_EVENT, NGX_EXCLUSIVE_EVENT)
                 == NGX_ERROR)
         {
+            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:add event error",__func__);
             return NGX_ERROR;
         }
 
@@ -740,6 +746,7 @@ ngx_event_one_listening_init(ngx_listening_t *ls)
 #endif
 
     if (ngx_add_event(rev, NGX_READ_EVENT, 0) == NGX_ERROR) {
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ngx_cycle->log, 0, "%s:add event error 2",__func__);
         return NGX_ERROR;
     }
 

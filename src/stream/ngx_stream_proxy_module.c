@@ -468,6 +468,8 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
             return;
             /*error*/
         }
+    } else {
+           ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "Don't find the parent session.");
     }
 #endif
     if (pscf->upstream_value) {

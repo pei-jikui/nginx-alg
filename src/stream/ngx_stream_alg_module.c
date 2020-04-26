@@ -150,9 +150,18 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     ls->ignore = 0;
     ls->fd = -1;
     ls->inherited = 0;
-    ls->reuseport = 1;
+    ls->reuseport = 0;
     ls->sockaddr = (struct sockaddr *)p;
     ls->parent_stream_session = s ;
+
+    ls->addr_text.len = INET_ADDRSTRLEN+1+6;
+    ls->addr_text.data = ngx_pcalloc(s->connection->pool,ls->addr_text.len);
+    ngx_memset(ls->addr_text.data,0,ls->addr_text.len);
+    ngx_snprintf(ls->addr_text.data,ls->addr_text.len,"0.0.0.0:%ud",port_num);
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+             "original listening socket work id %ud : current work id %ud",ls->worker,ngx_worker);
+    ls->worker = ngx_worker;
     if (ngx_open_one_listening_socket(ls) == NGX_ERROR) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
                 "Failed to create listening socket on port number: %ud",port_num);
@@ -160,7 +169,15 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
         ngx_pfree(s->connection->pool,p);
         return NGX_ERROR;
     }
-    ngx_event_one_listening_init(ls);
+    if ( ngx_event_one_listening_init(ls) == NGX_ERROR) {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+                "Failed to initialize listening socket on port number: %ud",port_num);
+        ngx_pfree(s->connection->pool,ls);
+        ngx_pfree(s->connection->pool,p);
+        return NGX_ERROR;
+    
+    }
+
     return port_num;
 }
 
@@ -172,7 +189,6 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
  */
 static ngx_int_t 
 ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
-
 {
     u_char * command = NULL;
     u_char pasv[] = "227 Entering Passive Mode (";
@@ -299,7 +315,9 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
             ngx_snprintf(buffer->pos,80,"PORT %ud,%ud,%ud,%ud,%ud,%ud\r\n",
                     addr1,addr2,addr3,addr4,port_num/256,port_num%256);
         }
-
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
+                "%s new buffer is %s.",__func__,buffer->pos);
+        
         buffer->last = buffer->pos + ngx_strlen(buffer->pos);
     }
     ngx_pfree(c->pool,command);
@@ -487,12 +505,14 @@ static ngx_int_t ngx_stream_stream_handler(ngx_event_t *ev, ngx_int_t stream_dir
     
      /*merge the read buffer*/
     if (c->buffer && c->buffer->pos < c->buffer->last) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "stream proxy add preread buffer: %uz",
-                       c->buffer->last - c->buffer->pos);
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                       "stream proxy add preread size: %uz buffer:%s",
+                       c->buffer->last - c->buffer->pos,c->buffer->pos);
 
         cl = ngx_chain_get_free_buf(c->pool, &u->free);
         if (cl == NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                    "couldn't get the free buf: %s", __func__);
             rc = NGX_ERROR;
             return rc;
         }
@@ -529,6 +549,8 @@ static void ngx_stream_alg_stream_handler(ngx_event_t *ev, ngx_int_t stream_dire
 
     rc = ngx_stream_stream_handler(ev,stream_direction);
     if (rc != NGX_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+                "stream handler error: %s", __func__);
         return;
     }
     if (stream_direction == NGX_STREAM_ALG_UPSTREAM) {
