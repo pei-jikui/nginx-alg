@@ -150,7 +150,7 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     ls->ignore = 0;
     ls->fd = -1;
     ls->inherited = 0;
-    ls->reuseport = 1;
+    ls->reuseport = 0;
     ls->sockaddr = (struct sockaddr *)p;
     ls->parent_stream_session = s ;
     ls->addr_text.len = INET_ADDRSTRLEN+1+6;
