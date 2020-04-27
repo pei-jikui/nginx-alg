@@ -127,7 +127,7 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     struct sockaddr_in          *sin;
     ngx_listening_t             *ls;
     ngx_listening_t             *ls_ctl;
-    ngx_int_t  port_num = 2180 + times;
+    ngx_int_t  port_num = 2180 + ngx_worker*50+ times;
     times ++;
     times %= 50;
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
