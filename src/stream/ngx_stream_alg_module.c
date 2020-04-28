@@ -122,16 +122,14 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info, ssi
 
 static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
 {
-    static int times = 0;
     u_char * p;
     struct sockaddr_in          *sin;
+    struct sockaddr_in sockaddr;
     ngx_listening_t             *ls;
     ngx_listening_t             *ls_ctl;
-    ngx_int_t  port_num = 2180 + ngx_worker*50+ times;
-    times ++;
-    times %= 50;
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
-                   "create listening socket on port number: %ud",port_num);
+    ngx_uint_t  port_num = 0;
+    socklen_t socklen = sizeof(struct sockaddr_in);
+    
 
     ls_ctl = s->connection->listening;
     if (ls_ctl == NULL) {
@@ -143,7 +141,7 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     }
     sin = (struct sockaddr_in *) p;
     sin->sin_family = AF_INET;
-    sin->sin_port = htons(port_num);
+    sin->sin_port = htons(0);
     sin->sin_addr.s_addr = INADDR_ANY;
     ls = ngx_pcalloc(s->connection->pool,sizeof(ngx_listening_t));
     *ls =  *ls_ctl;
@@ -153,22 +151,20 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     ls->reuseport = 0;
     ls->sockaddr = (struct sockaddr *)p;
     ls->parent_stream_session = s ;
-
-    ls->addr_text.len = INET_ADDRSTRLEN+1+6;
+    ls->worker = ngx_worker;
+    ls->addr_text.len = INET_ADDRSTRLEN+1+8;
     ls->addr_text.data = ngx_pcalloc(s->connection->pool,ls->addr_text.len);
     ngx_memset(ls->addr_text.data,0,ls->addr_text.len);
-    ngx_snprintf(ls->addr_text.data,ls->addr_text.len,"0.0.0.0:%ud",port_num);
-
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
              "original listening socket work id %ud : current work id %ud",ls->worker,ngx_worker);
-    ls->worker = ngx_worker;
     if (ngx_open_one_listening_socket(ls) == NGX_ERROR) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
-                "Failed to create listening socket on port number: %ud",port_num);
+        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+                "Failed to create listening socket on port number.");
         ngx_pfree(s->connection->pool,ls);
         ngx_pfree(s->connection->pool,p);
         return NGX_ERROR;
     }
+
     if ( ngx_event_one_listening_init(ls) == NGX_ERROR) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
                 "Failed to initialize listening socket on port number: %ud",port_num);
@@ -177,7 +173,16 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
         return NGX_ERROR;
     
     }
+    if (getsockname(ls->fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
+        ngx_pfree(s->connection->pool,ls);
+        ngx_pfree(s->connection->pool,p);
+        return NGX_ERROR;
+    }
 
+    port_num = ntohs(sockaddr.sin_port);
+    ngx_snprintf(ls->addr_text.data,ls->addr_text.len,"0.0.0.0:%ud",port_num);
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+            "Create listening port number %ud.",port_num);
     return port_num;
 }
 
