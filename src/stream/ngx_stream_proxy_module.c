@@ -424,8 +424,12 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
         if (!parent) {
             amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
             if (amcf) {
-                c->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
-                c->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_downstream_handler,NGX_STREAM_ALG_DOWNSTREAM);
+                c->write->handler = (amcf->alg_get_stream_handler)(s,
+                        ngx_stream_proxy_downstream_handler,
+                        NGX_STREAM_ALG_DOWNSTREAM);
+                c->read->handler = (amcf->alg_get_stream_handler)(s,
+                        ngx_stream_proxy_downstream_handler,
+                        NGX_STREAM_ALG_DOWNSTREAM);
             }
         }
     }
@@ -459,17 +463,20 @@ ngx_stream_proxy_handler(ngx_stream_session_t *s)
         ngx_stream_alg_ctx_t       *ctx;
         ctx = ngx_stream_get_module_ctx(parent, ngx_stream_alg_module);
         if (ctx && ctx->alg_resolved_peer) {
-            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "Alg data connection, don't need to select server.");
+            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, 
+                    "Alg data connection, don't need to select server.");
             u->resolved = ctx->alg_resolved_peer;
             goto resolved;
         } else {
-            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "ctx or alg resolved peer is invalidate.");
+            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, 
+                    "ctx or alg resolved peer is invalidate.");
             ngx_stream_proxy_finalize(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
             return;
             /*error*/
         }
     } else {
-           ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "Don't find the parent session.");
+           ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, 
+                   "Don't find the parent session.");
     }
 #endif
     if (pscf->upstream_value) {
@@ -951,8 +958,12 @@ ngx_stream_proxy_init_upstream(ngx_stream_session_t *s)
         if (!parent) {
             amcf = ngx_stream_get_module_main_conf(s,ngx_stream_alg_module);
             if (amcf) {
-                pc->write->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
-                pc->read->handler = (amcf->alg_get_stream_handler)(s,ngx_stream_proxy_upstream_handler,NGX_STREAM_ALG_UPSTREAM);
+                pc->write->handler = (amcf->alg_get_stream_handler)(s,
+                        ngx_stream_proxy_upstream_handler,
+                        NGX_STREAM_ALG_UPSTREAM);
+                pc->read->handler = (amcf->alg_get_stream_handler)(s,
+                        ngx_stream_proxy_upstream_handler,
+                        NGX_STREAM_ALG_UPSTREAM);
             }
         }
     }
@@ -1283,7 +1294,8 @@ done:
 static void
 ngx_stream_proxy_downstream_handler(ngx_event_t *ev)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"downstream handler %s.",ev->write? "write":"read");
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"downstream handler %s.",
+            ev->write? "write":"read");
     ngx_stream_proxy_process_connection(ev, ev->write);
 }
 
@@ -1360,7 +1372,8 @@ ngx_stream_proxy_resolve_handler(ngx_resolver_ctx_t *ctx)
 static void
 ngx_stream_proxy_upstream_handler(ngx_event_t *ev)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"upstream handler %s.",ev->write? "write":"read");
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM,ev->log,0,"upstream handler %s.",
+            ev->write? "write":"read");
     ngx_stream_proxy_process_connection(ev, !ev->write);
 }
 
