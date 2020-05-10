@@ -98,14 +98,11 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
     
     peer = ngx_pcalloc(c->pool,sizeof(ngx_stream_upstream_resolved_t));
     if (peer == NULL) {
-        ngx_pfree(c->pool,server_addr);
         return NGX_ERROR;
     }
 
     peer->sockaddr = ngx_pcalloc(c->pool,sizeof(struct sockaddr_in));
     if (peer->sockaddr == NULL) {
-        ngx_pfree(c->pool,server_addr);
-        ngx_pfree(c->pool,peer);
         return NGX_ERROR;
     }
 
@@ -114,15 +111,12 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
     sin->sin_port = htons(port1*256+port2);
     sin->sin_addr.s_addr = ngx_inet_addr(server_addr,ngx_strlen(server_addr));
     if (sin->sin_addr.s_addr == INADDR_NONE) {
-        ngx_pfree(c->pool,server_addr);
-        ngx_pfree(c->pool,peer);
         return NGX_ERROR;
     }
     peer->socklen = sizeof(struct sockaddr_in);
     peer->naddrs = 1;
     peer->port =htons(port1*256+port2);
     peer->no_port = 0;
-    ngx_pfree(c->pool,server_addr);
     ctx->alg_resolved_peer = peer;
     return NGX_OK;
 }
@@ -168,8 +162,6 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
     if (ngx_open_one_listening_socket(ls) == NGX_ERROR) {
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
                 "Failed to create listening socket on port number.");
-        ngx_pfree(s->connection->pool,ls);
-        ngx_pfree(s->connection->pool,p);
         return NGX_ERROR;
     }
 
@@ -177,14 +169,11 @@ static ngx_int_t ngx_stream_alg_create_listening_port(ngx_stream_session_t *s)
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
                        "Failed to initialize listening socket on port number: \
                        %ud", port_num);
-        ngx_pfree(s->connection->pool,ls);
-        ngx_pfree(s->connection->pool,p);
+
         return NGX_ERROR;
     
     }
     if (getsockname(ls->fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
-        ngx_pfree(s->connection->pool,ls);
-        ngx_pfree(s->connection->pool,p);
         return NGX_ERROR;
     }
 
@@ -243,7 +232,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                 "%s Don't find a full sentence %s with \"\\r\\n\"",
                 __func__,command);
-        ngx_pfree(c->pool,command);
         return NGX_AGAIN;
     }
 
@@ -258,7 +246,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         if (left_brace == NULL || right_brace == NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                     "%s:Couldn't find the right pattern string.",__func__);
-            ngx_pfree(c->pool,command);
             return NGX_OK;
         }
         entering_alg = 1;
@@ -271,7 +258,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         if (left_brace == NULL || right_brace == NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                     "%s:Couldn't find the right pattern string.",__func__);
-            ngx_pfree(c->pool,command);
             return NGX_OK;
         }
         entering_alg = 2;
@@ -287,12 +273,10 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                     "%s:Doesn't contain the right pattern for ip and port.",
                     __func__);
-            ngx_pfree(c->pool,command);
             return NGX_OK;
         }
         if (entering_alg == 1) {
             if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
-                ngx_pfree(c->pool,command);
                 return NGX_ERROR;
             }
             ngx_inet_ntop(sockaddr.sin_family,
@@ -305,7 +289,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         }else {
             fd = s->upstream ->peer.connection->fd;
             if (getsockname(fd, (struct sockaddr *)&sockaddr,&socklen) == -1) {
-                ngx_pfree(c->pool,command);
                 return NGX_ERROR;
             }
             ngx_inet_ntop(sockaddr.sin_family,
@@ -318,7 +301,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
 
         }
         if(number != 4 ) {
-            ngx_pfree(c->pool,command);
             return NGX_OK;
         }
         while (port_num <=0 && try_times++ < 5) {
@@ -328,7 +310,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM,s->connection->log,0,
                     "%s allocate a new socket for data session failed.",
                     __func__);
-            ngx_pfree(c->pool,command);
             return NGX_ERROR;
         }
         ngx_memset(buffer->pos,0,total_len);
@@ -345,7 +326,6 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
         
         buffer->last = buffer->pos + ngx_strlen(buffer->pos);
     }
-    ngx_pfree(c->pool,command);
 
     return NGX_OK;
 }
