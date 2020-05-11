@@ -70,7 +70,7 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
     ngx_stream_upstream_resolved_t *peer = NULL;
     unsigned int addr1,addr2,addr3,addr4;
     unsigned int port1,port2;
-    u_char* server_addr = NULL;
+    u_char server_addr[INET_ADDRSTRLEN+1] = {0};
     struct sockaddr_in   *sin;
     ngx_connection_t *c;
 
@@ -84,28 +84,19 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
         return NGX_ERROR;
     }
     
+    peer = ctx->alg_resolved_peer;
+    if (peer == NULL || peer->sockaddr == NULL) {
+        return NGX_ERROR;
+    }
+
     if (sscanf((const char*)addr_info,"%u,%u,%u,%u,%u,%u",&addr1,&addr2,&addr3,
                &addr4,&port1,&port2) != 6){
         return NGX_ERROR;
     }
     
-    server_addr = ngx_pcalloc(c->pool,INET_ADDRSTRLEN+1);
-    if (server_addr == NULL ){
-        return NGX_ERROR;
-    }
     ngx_snprintf(server_addr,INET_ADDRSTRLEN,"%ud.%ud.%ud.%ud",addr1,addr2,
                  addr3,addr4);
     
-    peer = ngx_pcalloc(c->pool,sizeof(ngx_stream_upstream_resolved_t));
-    if (peer == NULL) {
-        return NGX_ERROR;
-    }
-
-    peer->sockaddr = ngx_pcalloc(c->pool,sizeof(struct sockaddr_in));
-    if (peer->sockaddr == NULL) {
-        return NGX_ERROR;
-    }
-
     sin = (struct sockaddr_in *)peer->sockaddr;
     sin->sin_family = AF_INET;
     sin->sin_port = htons(port1*256+port2);
@@ -117,7 +108,6 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
     peer->naddrs = 1;
     peer->port =htons(port1*256+port2);
     peer->no_port = 0;
-    ctx->alg_resolved_peer = peer;
     return NGX_OK;
 }
 
@@ -218,12 +208,7 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
                 "%s size is too short to find the CRLF.",__func__);
         return NGX_AGAIN;   
     }
-    command = ngx_pcalloc(c->pool,total_len+1);
-    if (command == NULL) {
-        return NGX_ERROR;
-    }
-
-    ngx_memcpy(command,buffer->pos,total_len);
+    command = buffer->pos;
 
     /*check the buf ends with the \r\n */
 
@@ -359,7 +344,15 @@ ngx_stream_alg_handler(ngx_stream_session_t *s)
                 return NGX_ERROR;
             }
             ngx_stream_set_ctx(s, ctx, ngx_stream_alg_module);
-            ctx->alg_resolved_peer = NULL;
+            ctx->alg_resolved_peer = ngx_pcalloc(c->pool,sizeof(ngx_stream_upstream_resolved_t));
+            if (ctx->alg_resolved_peer == NULL){
+                return NGX_ERROR;
+            }
+            ctx->alg_resolved_peer->sockaddr = ngx_pcalloc(c->pool,sizeof(struct sockaddr_in));
+            if (ctx->alg_resolved_peer->sockaddr == NULL){
+                return NGX_ERROR;
+            }
+
         }
     }
 
