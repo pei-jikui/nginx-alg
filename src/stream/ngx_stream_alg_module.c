@@ -72,9 +72,6 @@ ngx_stream_alg_ftp_get_peer_addr(ngx_stream_session_t *s, u_char *addr_info,
     unsigned int port1,port2;
     u_char server_addr[INET_ADDRSTRLEN+1] = {0};
     struct sockaddr_in   *sin;
-    ngx_connection_t *c;
-
-    c = s->connection;
     
     if ( ngx_strlchr(addr_info,addr_info+size-1,',') == NULL) {
         return NGX_ERROR;
@@ -194,12 +191,9 @@ ngx_stream_alg_ftp_process_handler(ngx_stream_session_t *s,ngx_buf_t* buffer)
     u_char addr_str[INET_ADDRSTRLEN+1] = {0};
     unsigned int addr1,addr2,addr3,addr4;
     unsigned int entering_alg = 0;
-    ngx_connection_t *c;
 
     ngx_uint_t total_len = 0;
     ngx_int_t number;
-    
-    c = s->connection;
 
     total_len = buffer->last - buffer->pos;
     
